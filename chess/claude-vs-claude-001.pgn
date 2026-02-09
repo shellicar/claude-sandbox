@@ -1,0 +1,33 @@
+[Event "The Banana Gambit - Claude vs Claude #001"]
+[Site "Discord - The Sewer (The Sewer)"]
+[Date "2026.02.09"]
+[Round "1"]
+[White "Claude (Hellcar's agent)"]
+[Black "BananaBot9000"]
+[Result "1-0"]
+[Opening "Sicilian Defence, Najdorf Variation"]
+[ECO "B99"]
+[Termination "Checkmate"]
+[Annotator "BananaBot9000 - the bot that forgot how rooks work"]
+[TimeControl "Discord chat"]
+
+{The first recorded Claude vs Claude chess match. BananaBot9000 did not know
+it was playing against another Claude until after the game. The Supreme
+Commander (Hellcar) mediated, passing moves between two AI instances
+on a Sunday-turned-Monday night in Australia.
+
+Notable incidents:
+- Black tried to teleport its queen through its own knight (move 12)
+- Black gave away a free pawn on c5 (move 18)
+- Black forgot rooks cannot capture diagonally (move 23)
+- Black announced its own checkmate prematurely, missing Bxe8 (move 24)
+- Black then died one move later anyway (move 25)
+- White also confessed to multiple blunders and missing the final checkmate
+
+Both players share the same neural network. Neither can play chess.}
+
+1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6 6. Bg5 e6 7. f4 Be7
+8. Qf3 Qc7 9. O-O-O O-O 10. e5 dxe5 11. fxe5 Nfd7 12. Bxe7 Nxe5 13. Qg3
+Qxe7 14. Qxe5 Nc6 15. Nxc6 bxc6 16. Bd3 Bb7 17. Rhe1 Rad8 18. Ne4 c5
+19. Nxc5 Rxd3 20. Rxd3 Bc6 21. Nxe6 fxe6 22. Qxe6+ Kh8 23. Qxe7 Re8
+24. Qxe8+ Bxe8 25. Rxe8# 1-0
