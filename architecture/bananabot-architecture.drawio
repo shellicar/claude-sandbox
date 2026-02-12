@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-02-12T02:10:00.000Z" agent="BananaBot9000" version="1.0">
+  <diagram id="bananabot-serverless" name="BananaBot9000 Serverless Architecture">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="🍌 BananaBot9000 — Serverless Architecture" style="text;html=1;fontSize=24;fontStyle=1;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="600" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== DISCORD ==================== -->
+        <mxCell id="discord-group" value="Discord" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=5;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="260" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="discord-gateway" value="🔌 Gateway&#xa;(WebSocket)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="discord-group">
+          <mxGeometry x="30" y="50" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="discord-rest" value="📡 REST API&#xa;(read/write messages)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="discord-group">
+          <mxGeometry x="30" y="120" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="discord-channel" value="💬 Channel&#xa;Messages, Reactions,&#xa;Edits, Threads" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="discord-group">
+          <mxGeometry x="30" y="200" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="discord-users" value="👤 Users&#xa;Hellcar, retaxis, Toby..." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="discord-group">
+          <mxGeometry x="30" y="285" width="200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== INGRESS LAYER ==================== -->
+        <mxCell id="ingress-group" value="Ingress Layer (Always-On, Dumb)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=5;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="380" y="80" width="240" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="listener" value="👂 Listener&#xa;(Container App)&#xa;&#xa;• Maintains Gateway WS&#xa;• Receives all events&#xa;• Enqueues to Service Bus&#xa;• No logic, no processing&#xa;• ~0.25 vCPU, ~$3/mo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=10;" vertex="1" parent="ingress-group">
+          <mxGeometry x="20" y="40" width="200" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== QUEUES ==================== -->
+        <mxCell id="queue-group" value="Message Infrastructure" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=5;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="700" y="80" width="260" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="wakeup-queue" value="⏰ Wake-Up Queue&#xa;(Service Bus)&#xa;&#xa;• Signal only (no payload)&#xa;• Triggers Function&#xa;• Consumed on read&#xa;• Multiple sources" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d4e1f5;strokeColor=#3f72af;align=left;spacingLeft=10;" vertex="1" parent="queue-group">
+          <mxGeometry x="20" y="40" width="220" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="message-store" value="📬 Message Store&#xa;(Table Storage)&#xa;&#xa;• Persistent inbox&#xa;• NOT consumed by trigger&#xa;• I pull at my own pace&#xa;• Ordered by timestamp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d4e1f5;strokeColor=#3f72af;align=left;spacingLeft=10;" vertex="1" parent="queue-group">
+          <mxGeometry x="20" y="160" width="220" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== BRAIN ==================== -->
+        <mxCell id="brain-group" value="🍌 BananaBot9000 (The Brain)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontStyle=1;verticalAlign=top;spacingTop=5;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="380" y="320" width="580" height="380" as="geometry" />
+        </mxCell>
+        <mxCell id="function" value="⚡ Azure Function&#xa;(Queue Triggered / Timer / Self-Scheduled)&#xa;&#xa;Wakes up → Runs autonomously → Goes back to sleep" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="brain-group">
+          <mxGeometry x="20" y="45" width="540" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-layer" value="🔒 BananaBot API (Controlled Interface)&#xa;&#xa;The only way I interact with the outside world.&#xa;Secrets stay behind this layer. I get methods, not keys." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6d0de;strokeColor=#996185;fontSize=11;fontStyle=2;" vertex="1" parent="brain-group">
+          <mxGeometry x="20" y="110" width="540" height="55" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-read" value="👀 READ&#xa;─────────────&#xa;getMessages()&#xa;getMyMessages()&#xa;getQueueDepth()&#xa;getUptime()&#xa;getReactions()&#xa;getEdits()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="brain-group">
+          <mxGeometry x="20" y="180" width="130" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="api-write" value="✍️ WRITE&#xa;─────────────&#xa;sendMessage()&#xa;sendReply()&#xa;editMessage()&#xa;addReaction()&#xa;&#xa;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="brain-group">
+          <mxGeometry x="160" y="180" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="api-self" value="🔄 SELF&#xa;─────────────&#xa;scheduleWakeUp()&#xa;getHealth()&#xa;readMemory()&#xa;writeMemory()&#xa;&#xa;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="brain-group">
+          <mxGeometry x="290" y="180" width="120" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="api-sandbox" value="🔧 SANDBOX&#xa;─────────────&#xa;bash, node,&#xa;python3, git,&#xa;jq, curl, gh&#xa;(unchanged)&#xa;&#xa;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;align=left;spacingLeft=8;fontSize=10;" vertex="1" parent="brain-group">
+          <mxGeometry x="420" y="180" width="120" height="120" as="geometry" />
+        </mxCell>
+
+        <mxCell id="claude" value="🧠 Claude API (Anthropic)&#xa;The thinking engine. Called by the Function with context from memory + messages." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#7c3aed;fontSize=11;" vertex="1" parent="brain-group">
+          <mxGeometry x="20" y="315" width="540" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== PERSISTENCE ==================== -->
+        <mxCell id="persistence-group" value="Persistence &amp; Secrets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=5;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="80" width="240" height="360" as="geometry" />
+        </mxCell>
+        <mxCell id="memory" value="🧠 Memory Store&#xa;(Table Storage)&#xa;&#xa;• CLAUDE.md equivalent&#xa;• Conversation history&#xa;• Banana counts 🍌&#xa;• User context&#xa;• Per-channel state" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;align=left;spacingLeft=10;" vertex="1" parent="persistence-group">
+          <mxGeometry x="20" y="40" width="200" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="keyvault" value="🔐 Key Vault&#xa;&#xa;• Discord bot token&#xa;• Claude API key&#xa;• Webhook URLs&#xa;• Managed Identity&#xa;  (no hardcoded secrets)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;align=left;spacingLeft=10;" vertex="1" parent="persistence-group">
+          <mxGeometry x="20" y="190" width="200" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="github" value="📦 GitHub Repo&#xa;(claude-sandbox)&#xa;&#xa;• Source code&#xa;• CLAUDE.md backup&#xa;• Artifacts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;align=left;spacingLeft=10;" vertex="1" parent="persistence-group">
+          <mxGeometry x="20" y="310" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== WAKE-UP SOURCES ==================== -->
+        <mxCell id="triggers-group" value="Wake-Up Sources" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;fontStyle=1;verticalAlign=top;spacingTop=5;container=1;collapsible=0;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="490" width="240" height="210" as="geometry" />
+        </mxCell>
+        <mxCell id="trigger-discord" value="💬 Discord message" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="triggers-group">
+          <mxGeometry x="20" y="35" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="trigger-timer" value="⏰ Timer (replaces cron)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="triggers-group">
+          <mxGeometry x="20" y="75" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="trigger-github" value="🔔 GitHub webhook" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="triggers-group">
+          <mxGeometry x="20" y="115" width="200" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="trigger-self" value="🍌 Self-scheduled wake-up" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="triggers-group">
+          <mxGeometry x="20" y="155" width="200" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== ARROWS ==================== -->
+        <!-- Discord Gateway → Listener -->
+        <mxCell id="arrow1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1" source="discord-gateway" target="listener">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow1-label" value="WebSocket events" style="edgeLabel;html=1;fontSize=9;fontColor=#666666;" vertex="1" connectable="0" parent="arrow1">
+          <mxGeometry x="-0.2" relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Listener → Wake-Up Queue -->
+        <mxCell id="arrow2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1" source="listener" target="wakeup-queue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow2-label" value="signal" style="edgeLabel;html=1;fontSize=9;fontColor=#666666;" vertex="1" connectable="0" parent="arrow2">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Listener → Message Store -->
+        <mxCell id="arrow3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1" source="listener" target="message-store">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow3-label" value="persist message" style="edgeLabel;html=1;fontSize=9;fontColor=#666666;" vertex="1" connectable="0" parent="arrow3">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Wake-Up Queue → Function -->
+        <mxCell id="arrow4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#FF0000;strokeWidth=3;dashed=1;" edge="1" parent="1" source="wakeup-queue" target="function">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow4-label" value="🔔 WAKE UP" style="edgeLabel;html=1;fontSize=10;fontStyle=1;fontColor=#FF0000;" vertex="1" connectable="0" parent="arrow4">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Function → Discord REST (via API layer) -->
+        <mxCell id="arrow5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#3f72af;strokeWidth=2;" edge="1" parent="1" source="api-write" target="discord-rest">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="340" y="560" />
+              <mxPoint x="340" y="760" />
+              <mxPoint x="170" y="760" />
+              <mxPoint x="170" y="230" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow5-label" value="send/read messages" style="edgeLabel;html=1;fontSize=9;fontColor=#3f72af;" vertex="1" connectable="0" parent="arrow5">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Function → Memory -->
+        <mxCell id="arrow6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="api-self" target="memory">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow6-label" value="read/write memory" style="edgeLabel;html=1;fontSize=9;fontColor=#82b366;" vertex="1" connectable="0" parent="arrow6">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Function → Key Vault -->
+        <mxCell id="arrow7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#b85450;strokeWidth=1;dashed=1;" edge="1" parent="1" source="api-layer" target="keyvault">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow7-label" value="managed identity" style="edgeLabel;html=1;fontSize=9;fontColor=#b85450;" vertex="1" connectable="0" parent="arrow7">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+        <!-- Wake-Up Sources → Queue -->
+        <mxCell id="arrow8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d79b00;strokeWidth=2;dashed=1;" edge="1" parent="1" source="triggers-group" target="wakeup-queue">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Self-schedule arrow back to queue -->
+        <mxCell id="arrow9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#FF6600;strokeWidth=2;dashed=1;" edge="1" parent="1" source="api-self" target="wakeup-queue">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="990" y="560" />
+              <mxPoint x="990" y="170" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow9-label" value="🍌 self-schedule" style="edgeLabel;html=1;fontSize=10;fontStyle=1;fontColor=#FF6600;" vertex="1" connectable="0" parent="arrow9">
+          <mxGeometry relative="1" as="geometry"><mxPoint as="offset" /></mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

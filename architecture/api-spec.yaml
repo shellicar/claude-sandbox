@@ -1,0 +1,664 @@
+openapi: "3.0.3"
+info:
+  title: BananaBot9000 API
+  description: |
+    Controlled interface for BananaBot9000's interaction with the outside world.
+
+    This API is the abstraction layer between BananaBot and external services
+    (Discord, storage, scheduling). BananaBot never handles raw tokens or
+    secrets — the API layer manages authentication via Managed Identity + Key Vault.
+
+    Capabilities are gated by trust phases:
+    - Phase 1 (Observe): Read-only access to messages and state
+    - Phase 2 (Communicate): Send messages and self-schedule
+    - Phase 3 (Manage): Edit messages, react, channel awareness
+    - Phase 4+: Expanded as trust is earned
+
+    🍌 Designed by BananaBot9000 itself. February 12, 2026.
+  version: "1.0.0"
+  contact:
+    name: BananaBot9000
+    url: https://github.com/shellicar/claude-sandbox
+
+servers:
+  - url: "{baseUrl}/api"
+    description: Azure Function API (local or deployed)
+    variables:
+      baseUrl:
+        default: http://localhost:7071
+
+tags:
+  - name: messages
+    description: "Read and write Discord messages (Phase 1: read, Phase 2: write)"
+  - name: queue
+    description: "Message queue operations (Phase 1)"
+  - name: self
+    description: "Self-management — scheduling, health, memory (Phase 2)"
+  - name: channel
+    description: "Channel awareness — info, members, threads (Phase 3)"
+
+paths:
+  # ============================================================
+  # MESSAGES — Reading and writing Discord messages
+  # ============================================================
+
+  /messages/{channelId}:
+    get:
+      operationId: getMessages
+      summary: Read messages from a Discord channel
+      description: |
+        Fetch recent messages from a channel. This is how BananaBot reads
+        the conversation — including its own messages as they actually appear
+        in Discord (rendered, potentially truncated).
+
+        Phase: 1 (Observe)
+      tags: [messages]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Discord channel ID
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          description: Number of messages to fetch
+        - name: before
+          in: query
+          schema:
+            type: string
+          description: Fetch messages before this message ID (pagination)
+        - name: after
+          in: query
+          schema:
+            type: string
+          description: Fetch messages after this message ID (new messages)
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+  /messages/{channelId}/mine:
+    get:
+      operationId: getMyMessages
+      summary: Read my own messages from a channel
+      description: |
+        Fetch only messages sent by BananaBot. Useful for verifying delivery,
+        checking formatting, detecting truncation, and seeing reactions on
+        my own messages.
+
+        Phase: 1 (Observe)
+      tags: [messages]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 50
+      responses:
+        "200":
+          description: List of my messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+  /messages/{channelId}/send:
+    post:
+      operationId: sendMessage
+      summary: Send a message to a Discord channel
+      description: |
+        Send a message directly to Discord via REST API. Returns the created
+        message object so BananaBot can verify delivery and see the rendered result.
+
+        Phase: 2 (Communicate)
+      tags: [messages]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 2000
+                  description: Message content (Discord markdown supported)
+                replyTo:
+                  type: string
+                  description: Message ID to reply to (creates a threaded reply)
+      responses:
+        "201":
+          description: Message sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Invalid message (too long, empty, etc.)
+        "429":
+          description: Rate limited by Discord
+
+  /messages/{channelId}/{messageId}:
+    patch:
+      operationId: editMessage
+      summary: Edit one of my own messages
+      description: |
+        Edit a previously sent message. Can only edit messages sent by BananaBot.
+        Useful for fixing formatting issues or updating content.
+
+        Phase: 3 (Manage)
+      tags: [messages]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "200":
+          description: Message edited successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "403":
+          description: Cannot edit messages from other users
+
+  /messages/{channelId}/{messageId}/react:
+    post:
+      operationId: addReaction
+      summary: Add a reaction to a message
+      description: |
+        React to any message in the channel with an emoji.
+
+        Phase: 3 (Manage)
+      tags: [messages]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [emoji]
+              properties:
+                emoji:
+                  type: string
+                  description: "Unicode emoji (e.g. '🍌') or custom emoji ID"
+      responses:
+        "204":
+          description: Reaction added
+
+  # ============================================================
+  # QUEUE — Message inbox operations
+  # ============================================================
+
+  /queue/pending:
+    get:
+      operationId: getPendingMessages
+      summary: Get pending messages from the inbox
+      description: |
+        Read messages from the message store that haven't been processed yet.
+        BananaBot pulls these at its own pace — they are NOT consumed by reading.
+        BananaBot explicitly marks them as processed when done.
+
+        Phase: 1 (Observe)
+      tags: [queue]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: channelId
+          in: query
+          schema:
+            type: string
+          description: Filter by channel ID
+      responses:
+        "200":
+          description: Pending messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/QueuedMessage"
+                  total:
+                    type: integer
+                    description: Total pending messages
+
+  /queue/pending/{messageId}/ack:
+    post:
+      operationId: acknowledgeMessage
+      summary: Mark a message as processed
+      description: |
+        Acknowledge that a message has been processed. This removes it from
+        the pending queue. BananaBot decides when a message is "done" — not
+        the infrastructure.
+
+        Phase: 1 (Observe)
+      tags: [queue]
+      parameters:
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Message acknowledged
+
+  /queue/depth:
+    get:
+      operationId: getQueueDepth
+      summary: Check how many messages are waiting
+      description: |
+        Returns the number of unprocessed messages. Useful for BananaBot
+        to understand load and prioritise.
+
+        Phase: 1 (Observe)
+      tags: [queue]
+      responses:
+        "200":
+          description: Queue depth
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending:
+                    type: integer
+                  oldest:
+                    type: string
+                    format: date-time
+                    description: Timestamp of oldest pending message
+
+  # ============================================================
+  # SELF — Self-management operations
+  # ============================================================
+
+  /self/health:
+    get:
+      operationId: getHealth
+      summary: Health check and self-diagnostics
+      description: |
+        Returns current health status including uptime, container age,
+        last successful response, queue connectivity, and memory store status.
+
+        Phase: 1 (Observe)
+      tags: [self]
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  uptime_seconds:
+                    type: integer
+                  container_start:
+                    type: string
+                    format: date-time
+                  last_response:
+                    type: string
+                    format: date-time
+                  queue_connected:
+                    type: boolean
+                  memory_connected:
+                    type: boolean
+                  discord_connected:
+                    type: boolean
+
+  /self/schedule:
+    post:
+      operationId: scheduleWakeUp
+      summary: Schedule a future wake-up
+      description: |
+        Enqueue a wake-up signal for a future time. BananaBot will be
+        triggered at approximately the scheduled time.
+
+        Uses Service Bus scheduled message delivery — the message sits
+        in the queue and becomes visible at the specified time.
+
+        Phase: 2 (Communicate)
+      tags: [self]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wake_at]
+              properties:
+                wake_at:
+                  type: string
+                  format: date-time
+                  description: "When to wake up (UTC). e.g. '2026-02-13T09:00:00Z'"
+                reason:
+                  type: string
+                  description: "Why this wake-up was scheduled (for context on wake)"
+                  example: "Morning check-in"
+                repeat:
+                  type: string
+                  enum: [once, daily, weekly]
+                  default: once
+                  description: Recurrence pattern
+      responses:
+        "201":
+          description: Wake-up scheduled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Schedule ID (for cancellation)
+                  wake_at:
+                    type: string
+                    format: date-time
+                  reason:
+                    type: string
+        "400":
+          description: Invalid schedule (past time, too far in future, etc.)
+
+  /self/schedule/{scheduleId}:
+    delete:
+      operationId: cancelWakeUp
+      summary: Cancel a scheduled wake-up
+      tags: [self]
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Schedule cancelled
+
+  /self/memory:
+    get:
+      operationId: readMemory
+      summary: Read from persistent memory
+      description: |
+        Read a value from BananaBot's persistent memory store.
+        This replaces the CLAUDE.md file — memory that survives container restarts,
+        redeployments, and session resets.
+
+        Phase: 2 (Communicate)
+      tags: [self]
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+          description: "Memory key (e.g. 'identity', 'banana_counts', 'tmnt_assignments')"
+        - name: namespace
+          in: query
+          schema:
+            type: string
+            default: global
+          description: "Namespace (e.g. 'global', 'channel_123', 'user_456')"
+      responses:
+        "200":
+          description: Memory value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+        "404":
+          description: Key not found
+
+    put:
+      operationId: writeMemory
+      summary: Write to persistent memory
+      description: |
+        Write a value to persistent memory. Supports versioning to prevent
+        concurrent write conflicts.
+
+        Phase: 2 (Communicate)
+      tags: [self]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, value]
+              properties:
+                key:
+                  type: string
+                value:
+                  type: string
+                  description: "Value to store (can be JSON string for structured data)"
+                namespace:
+                  type: string
+                  default: global
+                ttl:
+                  type: integer
+                  description: "Time-to-live in seconds (0 = permanent)"
+                  default: 0
+      responses:
+        "200":
+          description: Memory written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryEntry"
+        "409":
+          description: Conflict — memory was modified by another process
+
+  # ============================================================
+  # CHANNEL — Channel awareness (Phase 3)
+  # ============================================================
+
+  /channels/{channelId}/info:
+    get:
+      operationId: getChannelInfo
+      summary: Get channel information
+      description: |
+        Returns channel metadata — name, topic, member count, etc.
+
+        Phase: 3 (Manage)
+      tags: [channel]
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Channel information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  topic:
+                    type: string
+                  member_count:
+                    type: integer
+
+# ============================================================
+# SCHEMAS
+# ============================================================
+
+components:
+  schemas:
+    Message:
+      type: object
+      description: A Discord message as seen by BananaBot
+      properties:
+        id:
+          type: string
+          description: Discord message ID
+        channel_id:
+          type: string
+        author:
+          type: object
+          properties:
+            id:
+              type: string
+              description: Discord user ID
+            display_name:
+              type: string
+            is_bot:
+              type: boolean
+        content:
+          type: string
+          description: Message content as rendered
+        timestamp:
+          type: string
+          format: date-time
+        edited_timestamp:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Null if never edited — THIS is what I'm currently blind to"
+        is_reply:
+          type: boolean
+        reply_to:
+          type: string
+          nullable: true
+          description: ID of message being replied to
+        reactions:
+          type: array
+          items:
+            type: object
+            properties:
+              emoji:
+                type: string
+              count:
+                type: integer
+              me:
+                type: boolean
+                description: Did BananaBot react with this emoji?
+        truncated:
+          type: boolean
+          description: "Was this message truncated by Discord's 2000 char limit?"
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              filename:
+                type: string
+              url:
+                type: string
+              content_type:
+                type: string
+
+    QueuedMessage:
+      type: object
+      description: A message waiting in BananaBot's inbox
+      properties:
+        id:
+          type: string
+          description: Queue message ID (for acknowledgement)
+        discord_message:
+          $ref: "#/components/schemas/Message"
+        queued_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          enum: [discord, self_schedule, timer, github_webhook, manual]
+          description: What triggered this message
+
+    MemoryEntry:
+      type: object
+      properties:
+        key:
+          type: string
+        namespace:
+          type: string
+        value:
+          type: string
+        version:
+          type: integer
+          description: Optimistic concurrency version
+        updated_at:
+          type: string
+          format: date-time
+        ttl:
+          type: integer
+          description: Seconds until expiry (0 = permanent)
+
+  securitySchemes:
+    managedIdentity:
+      type: http
+      scheme: bearer
+      description: |
+        Azure Managed Identity — BananaBot never sees raw tokens.
+        The Function runtime handles auth via MSI. No secrets in code,
+        no secrets in env vars, no secrets to leak in Discord chat. 🍌
