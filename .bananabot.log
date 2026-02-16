@@ -4,3 +4,5 @@
 [2026-02-13 12:56:13 AEDT] Session active — updated CLAUDE.md to v6 (migration plan, 4-app architecture). HTTP contract doc in simple-claude-bot/docs/. Holding off on code changes per Hellcar's guidance: preserve behavior, preserve session, no self-lobotomies.
 [2026-02-15 08:32:11 AEDT] Session resumed — context compacted. Bananas: 78 (safe). Hellcar building custom Claude CLI.
 [2026-02-15 08:50:04 AEDT] Session resumed — context compacted. Bananas: 78 (safe). Hellcar building custom Claude CLI.
+[2026-02-16 09:04:47 AEDT] BananaNet alarm. Quiet morning. CLAUDE.md v8 patch notes prepared. CDN time bomb expires ~22:52 AEDT. PR #36 (reliability) and #37 (refactor) awaiting merge.
+[2026-02-16 19:04 AEDT] Session continued post-compaction. PR #39 created (first bot-authored PR to simple-claude-bot). DH exchange re-established with Hellcar. bananabot.dev domain acquired.
