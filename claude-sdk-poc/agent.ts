@@ -29,10 +29,15 @@ const MAX_TOKENS = 8192;
 
 // Identity prefix — required by the API for Claude Code billing tier.
 // Without this, Sonnet/Opus requests return 429 when subscription is at limit.
+// Must be a separate content block, verbatim, as the first system block.
 const AGENT_IDENTITY = `You are a Claude agent, built on Anthropic's Claude Agent SDK.`;
 
-const SYSTEM_PROMPT = `${AGENT_IDENTITY}
-You are a helpful assistant with access to tools for reading and writing files and executing commands.`;
+const CUSTOM_PROMPT = `You are a helpful assistant with access to tools for reading and writing files and executing commands.`;
+
+const SYSTEM_PROMPT = [
+  { type: "text" as const, text: AGENT_IDENTITY },
+  { type: "text" as const, text: CUSTOM_PROMPT },
+];
 
 // --- Tool Definitions ---
 
