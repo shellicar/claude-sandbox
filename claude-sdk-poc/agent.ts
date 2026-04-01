@@ -26,7 +26,13 @@ import { createInterface } from "node:readline";
 
 const MODEL = "claude-sonnet-4-5-20250929";
 const MAX_TOKENS = 8192;
-const SYSTEM_PROMPT = `You are a helpful assistant with access to tools for reading and writing files and executing commands.`;
+
+// Identity prefix — required by the API for Claude Code billing tier.
+// Without this, Sonnet/Opus requests return 429 when subscription is at limit.
+const AGENT_IDENTITY = `You are a Claude agent, built on Anthropic's Claude Agent SDK.`;
+
+const SYSTEM_PROMPT = `${AGENT_IDENTITY}
+You are a helpful assistant with access to tools for reading and writing files and executing commands.`;
 
 // --- Tool Definitions ---
 
@@ -216,13 +222,19 @@ async function agentLoop(
 // --- REPL ---
 
 async function main() {
+  const oauthToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
+
   const client = new Anthropic({
-    // Support both standard API key and OAuth token (Claude Code uses OAuth)
-    ...(process.env.CLAUDE_CODE_OAUTH_TOKEN && !process.env.ANTHROPIC_API_KEY
+    ...(oauthToken && !hasApiKey
       ? {
-          authToken: process.env.CLAUDE_CODE_OAUTH_TOKEN,
+          authToken: oauthToken,
           apiKey: null,
-          defaultHeaders: { "anthropic-beta": "oauth-2025-04-20" },
+          defaultHeaders: {
+            "anthropic-beta":
+              "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14",
+            "x-app": "cli",
+          },
         }
       : {}),
   });
