@@ -18,12 +18,7 @@ const server = http.createServer((req, res) => {
     for (const [k, v] of Object.entries(req.headers)) {
       // Skip hop-by-hop and internal headers
       if (['host', 'connection', 'accept-encoding', 'content-length', 'transfer-encoding'].includes(k)) continue;
-      // Redact auth token
-      if (k === 'authorization') {
-        parts.push(`  -H '${k}: ${String(v).substring(0, 30)}...'`);
-      } else {
-        parts.push(`  -H '${k}: ${v}'`);
-      }
+      parts.push(`  -H '${k}: ${v}'`);
     }
 
     if (body) {
