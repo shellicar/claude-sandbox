@@ -4,8 +4,9 @@ set -e
 # --- Configuration ---
 GPG_AGENT_CONF="$HOME/.gnupg/gpg-agent.conf"
 GPG_CONF="$HOME/.gnupg/gpg.conf"
-DEFAULT_CACHE_TTL=0
-MAX_CACHE_TTL=0
+KEYCHAIN_NAME="gpg"
+KEYCHAIN_PATH="$HOME/Library/Keychains/${KEYCHAIN_NAME}.keychain-db"
+KEYCHAIN_TIMEOUT=1
 
 # --- Helpers ---
 usage() {
@@ -14,7 +15,7 @@ usage() {
   echo "Commands:"
   echo "  --generate     Generate a new GPG key (interactive)"
   echo "  --test-sign    Test signing with a key (prompts for email)"
-  echo "  --configure    Configure gpg-agent, pinentry, and Keychain"
+  echo "  --configure    Configure gpg-agent, keychain, and pinentry"
   exit 1
 }
 
@@ -74,48 +75,59 @@ configure_agent() {
   echo "===================================="
   echo ""
 
+  # --- Keychain ---
+  if [ -f "$KEYCHAIN_PATH" ]; then
+    echo "  Keychain '$KEYCHAIN_NAME' already exists: $KEYCHAIN_PATH"
+  else
+    echo "  Creating keychain '$KEYCHAIN_NAME'..."
+    security create-keychain "$KEYCHAIN_NAME"
+  fi
+
+  # Set lock timeout
+  security set-keychain-settings -t "$KEYCHAIN_TIMEOUT" "$KEYCHAIN_PATH"
+  echo "  Keychain timeout: ${KEYCHAIN_TIMEOUT}s"
+
+  # Ensure it's in the search list
+  current_keychains=$(security list-keychains -d user | tr -d '"' | tr -d ' ' | tr '\n' ' ')
+  case "$current_keychains" in
+    *"$KEYCHAIN_PATH"*) ;;
+    *) security list-keychains -d user -s $current_keychains "$KEYCHAIN_PATH" ;;
+  esac
+  echo "  Keychain in search list: yes"
+
+  # Point pinentry-mac at the gpg keychain
+  defaults write org.gpgtools.common KeychainPath "$KEYCHAIN_PATH"
+  echo "  org.gpgtools.common KeychainPath: $KEYCHAIN_PATH"
+  echo ""
+
+  # --- gpg-agent.conf ---
   mkdir -p "$HOME/.gnupg"
   chmod 700 "$HOME/.gnupg"
 
-  # gpg-agent.conf
   cat > "$GPG_AGENT_CONF" <<EOF
-default-cache-ttl $DEFAULT_CACHE_TTL
-max-cache-ttl $MAX_CACHE_TTL
+default-cache-ttl 0
+max-cache-ttl 0
 EOF
 
-  # Detect pinentry and configure Keychain
   if command -v pinentry-mac > /dev/null 2>&1; then
     echo "pinentry-program $(command -v pinentry-mac)" >> "$GPG_AGENT_CONF"
-    echo "  pinentry: pinentry-mac"
-
-    # Enable Keychain storage in pinentry-mac
-    defaults write org.gpgtools.pinentry-mac UseKeychain -bool YES
-    defaults write org.gpgtools.pinentry-mac DisableKeychain -bool NO
-    echo "  Keychain: enabled (org.gpgtools.pinentry-mac)"
-  elif command -v pinentry-gnome3 > /dev/null 2>&1; then
-    echo "pinentry-program $(command -v pinentry-gnome3)" >> "$GPG_AGENT_CONF"
-    echo "  pinentry: pinentry-gnome3"
-  else
-    echo "  pinentry: default"
+    echo "  pinentry: $(command -v pinentry-mac)"
   fi
 
-  echo "  cache TTL: 0 (no memory cache)"
+  echo "  gpg-agent cache: disabled (TTL 0)"
   echo "  config: $GPG_AGENT_CONF"
   echo ""
 
-  # gpg.conf
+  # --- gpg.conf ---
   if [ ! -f "$GPG_CONF" ] || ! grep -q "no-tty" "$GPG_CONF" 2>/dev/null; then
     echo "no-tty" >> "$GPG_CONF"
   fi
 
   # Reload agent
   gpg-connect-agent reloadagent /bye 2>/dev/null || true
-
-  echo "Agent reloaded."
+  echo "  Agent reloaded."
   echo ""
-  echo "Passphrase is stored in macOS Keychain via pinentry-mac."
-  echo "gpg-agent memory cache is disabled (TTL 0)."
-  echo "First sign will prompt -- tick 'Save in Keychain', then it's automatic."
+  echo "Done. First sign will prompt for passphrase -- save it to the '$KEYCHAIN_NAME' keychain."
 }
 
 # --- Main ---
