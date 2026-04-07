@@ -140,6 +140,115 @@ function formatBytes(chars) {
   return `${(chars / (1024 * 1024)).toFixed(1)}M chars`;
 }
 
+function parseSSEResponse(sseBody) {
+  // Parse SSE events to extract usage, tool calls, stop reason, content
+  const result = {
+    usage: null,
+    content: [],
+    stop_reason: null,
+    model: null,
+  };
+
+  // Accumulate usage from message_start and message_delta
+  let baseUsage = {};
+  let deltaUsage = {};
+
+  // Track content blocks being built
+  const contentBlocks = {};
+
+  const events = sseBody.split('\n\n');
+  for (const event of events) {
+    const lines = event.trim().split('\n');
+    let eventType = null;
+    let data = null;
+
+    for (const line of lines) {
+      if (line.startsWith('event: ')) eventType = line.slice(7).trim();
+      if (line.startsWith('data: ')) {
+        try {
+          data = JSON.parse(line.slice(6));
+        } catch { /* ignore */ }
+      }
+    }
+
+    if (!data) continue;
+
+    if (eventType === 'message_start' && data.message) {
+      result.model = data.message.model;
+      if (data.message.usage) {
+        baseUsage = { ...data.message.usage };
+      }
+    }
+
+    if (eventType === 'message_delta') {
+      if (data.delta?.stop_reason) result.stop_reason = data.delta.stop_reason;
+      if (data.usage) {
+        deltaUsage = { ...data.usage };
+      }
+    }
+
+    if (eventType === 'content_block_start' && data.content_block) {
+      contentBlocks[data.index] = { ...data.content_block };
+      if (data.content_block.type === 'tool_use') {
+        contentBlocks[data.index].input = '';
+      }
+    }
+
+    if (eventType === 'content_block_delta' && data.delta) {
+      const block = contentBlocks[data.index];
+      if (block) {
+        if (data.delta.type === 'text_delta') {
+          block.text = (block.text || '') + (data.delta.text || '');
+        }
+        if (data.delta.type === 'input_json_delta') {
+          block.input = (block.input || '') + (data.delta.partial_json || '');
+        }
+        if (data.delta.type === 'thinking_delta') {
+          block.thinking = (block.thinking || '') + (data.delta.thinking || '');
+        }
+      }
+    }
+  }
+
+  // Merge usage: base has input tokens, delta has output tokens
+  result.usage = {
+    input_tokens: baseUsage.input_tokens || 0,
+    output_tokens: deltaUsage.output_tokens || baseUsage.output_tokens || 0,
+    cache_read_input_tokens: baseUsage.cache_read_input_tokens || 0,
+    cache_creation_input_tokens: baseUsage.cache_creation_input_tokens || 0,
+  };
+
+  // Build content array
+  for (const [, block] of Object.entries(contentBlocks).sort(([a], [b]) => a - b)) {
+    if (block.type === 'tool_use') {
+      try {
+        block.input = JSON.parse(block.input);
+      } catch { /* leave as string */ }
+    }
+    result.content.push(block);
+  }
+
+  return result;
+}
+
+function getResponseData(resp) {
+  if (!resp) return null;
+  const body = resp.body;
+
+  // Already parsed JSON (non-streaming)
+  if (body && typeof body === 'object' && !resp.streaming) return body;
+
+  // Streaming SSE — parse it
+  if (resp.streaming && typeof body === 'string') return parseSSEResponse(body);
+
+  // String body that might be JSON
+  if (typeof body === 'string') {
+    try { return JSON.parse(body); } catch { return null; }
+  }
+
+  return null;
+}
+
 // --- Main ---
 
 const requests = readJsonl(requestsFile);
@@ -238,8 +347,9 @@ for (const req of requests) {
   }
 
   // Response analysis
-  if (respBody && typeof respBody === 'object') {
-    const usage = respBody.usage;
+  const parsedResp = getResponseData(resp);
+  if (parsedResp) {
+    const usage = parsedResp.usage;
     if (usage) {
       console.log('');
       console.log(`Tokens: input=${usage.input_tokens || 0}, output=${usage.output_tokens || 0}, cache_read=${usage.cache_read_input_tokens || 0}, cache_write=${usage.cache_creation_input_tokens || 0}`);
@@ -265,8 +375,8 @@ for (const req of requests) {
     }
 
     // Tool calls in response
-    if (respBody.content) {
-      const toolCalls = extractToolCalls(respBody.content);
+    if (parsedResp.content) {
+      const toolCalls = extractToolCalls(parsedResp.content);
       if (toolCalls.length > 0) {
         console.log(`Tool calls: ${toolCalls.length}${toolCalls.length > 1 ? ' (PARALLEL)' : ''}`);
         for (const tc of toolCalls) {
@@ -278,7 +388,7 @@ for (const req of requests) {
       }
     }
 
-    console.log(`Stop reason: ${respBody.stop_reason || 'unknown'}`);
+    console.log(`Stop reason: ${parsedResp.stop_reason || 'unknown'}`);
   }
 
   console.log('');
