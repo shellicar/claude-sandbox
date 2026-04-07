@@ -153,12 +153,7 @@ function buildRequestMarkdown(body, queryNum) {
       lines.push('');
 
       const text = extractTextContent(msg.content);
-      if (text.length > 5000) {
-        lines.push(text.slice(0, 5000));
-        lines.push(`\n... [truncated, ${text.length} chars total]`);
-      } else {
-        lines.push(text);
-      }
+      lines.push(text);
       lines.push('');
     }
   }
@@ -222,13 +217,7 @@ function buildResponseMarkdown(responseBody, queryNum, statusCode, headers) {
           } else if (block.type === 'tool_use') {
             lines.push(`**[Tool Use: ${block.name}]**`);
             lines.push('```json');
-            const inputStr = JSON.stringify(block.input, null, 2);
-            if (inputStr.length > 3000) {
-              lines.push(inputStr.slice(0, 3000));
-              lines.push(`... [truncated, ${inputStr.length} chars total]`);
-            } else {
-              lines.push(inputStr);
-            }
+            lines.push(JSON.stringify(block.input, null, 2));
             lines.push('```');
           } else if (block.type === 'thinking') {
             lines.push('<details><summary>Thinking</summary>');
@@ -244,16 +233,9 @@ function buildResponseMarkdown(responseBody, queryNum, statusCode, headers) {
       }
     } catch {
       // Non-JSON response (streaming SSE or error)
-      if (responseBody.length > 3000) {
-        lines.push('```');
-        lines.push(responseBody.slice(0, 3000));
-        lines.push('... [truncated]');
-        lines.push('```');
-      } else {
-        lines.push('```');
-        lines.push(responseBody);
-        lines.push('```');
-      }
+      lines.push('```');
+      lines.push(responseBody);
+      lines.push('```');
     }
   }
 
